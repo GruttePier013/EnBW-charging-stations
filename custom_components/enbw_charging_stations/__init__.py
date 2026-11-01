@@ -8,7 +8,7 @@ from pathlib import Path
 
 import voluptuous as vol
 from homeassistant.components.http import StaticPathConfig
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
@@ -189,6 +189,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnbwConfigEntry) -> bool
     entry.async_on_unload(tracker.async_start())
 
     # Data that becomes older than a day must turn 'unknown' even when nothing triggers an update
+    @callback  # without it Home Assistant runs the timer in a worker thread, where state writes are not allowed
     def _check_stale(_now) -> None:
         for coordinator in coordinators.values():
             if coordinator.is_stale:

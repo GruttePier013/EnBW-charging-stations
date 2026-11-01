@@ -22,11 +22,6 @@ from .coordinator import StationCoordinator
 _LOGGER = logging.getLogger(__name__)
 
 
-@callback
-def _is_person_event(data: EventStateChangedData) -> bool:
-    return str(data["entity_id"]).startswith("person.")
-
-
 def coarse_distance(meters: int) -> int:
     """Round for the distance sensor so a moving person does not cause a state write per GPS fix."""
     if meters < 1000:
@@ -56,8 +51,19 @@ class ProximityTracker:
         return self.hass.bus.async_listen(
             EVENT_STATE_CHANGED,
             self._handle_state_change,
-            event_filter=_is_person_event,
+            event_filter=self._is_relevant_event,
         )
+
+    @callback
+    def _is_relevant_event(self, data: EventStateChangedData) -> bool:
+        """Person changes, and changes of a phone's activity sensor (for example to in_vehicle)."""
+        entity_id = str(data["entity_id"])
+        if entity_id.startswith("person."):
+            return True
+        if not entity_id.startswith("sensor."):
+            return False
+        entry = er.async_get(self.hass).async_get(entity_id)
+        return bool(entry and entry.platform == "mobile_app" and "detected_activity" in (entry.unique_id or ""))
 
     @callback
     def _handle_state_change(self, event: Event[EventStateChangedData]) -> None:

@@ -242,8 +242,9 @@ class StationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _async_update_data(self) -> dict[str, Any]:
         self.last_fetch_monotonic = time.monotonic()
         previous = self.view
+        auto = self._auto  # a refresh that starts meanwhile must not change what this one is
         try:
-            detail = await self.api.async_detail(self.station_id, auto=self._auto)
+            detail = await self.api.async_detail(self.station_id, auto=auto)
         except EnbwAuthError as err:
             raise ConfigEntryAuthFailed(str(err)) from err
         except EnbwBlocked as err:  # API paused between the check and the call: not the station's fault
@@ -255,7 +256,7 @@ class StationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         view = build_view(detail, self.plugs, self.min_power)
         if view["lat"] is not None and view["lon"] is not None:
             self._live_location = (view["lat"], view["lon"])
-        self._detect_freed_points(previous, view)
+        self._detect_freed_points(previous, view, auto=auto)
         return {
             "view": view,
             "raw": detail,
@@ -303,13 +304,13 @@ class StationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             names.append((state.attributes.get("friendly_name") if state else None) or entity_id)
         return names
 
-    def _detect_freed_points(self, old: dict[str, Any] | None, new: dict[str, Any]) -> None:
+    def _detect_freed_points(self, old: dict[str, Any] | None, new: dict[str, Any], *, auto: bool) -> None:
         """Fire an event for every charge point that became available at a manual refresh (button/action).
 
         Only a change *to* available counts (from occupied, unknown or out of service); available to
         available is skipped. Automatic refreshes never fire the event.
         """
-        if old is None or self._auto:
+        if old is None or auto:
             return
         before = {(p["evse"] or p["number"]): p["status"] for p in old["points"]}
         for point in new["points"]:

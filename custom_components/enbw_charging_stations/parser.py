@@ -57,7 +57,7 @@ def clean_address(value: str) -> str:
 
 
 def list_label(address: str) -> str:
-    """'Hoofdlaan 1, Amsterdam, NL' -> 'Hoofdlaan 1, Amsterdam' (no country code in the result list)."""
+    """'Main Street 1, Exampletown, NL' -> 'Main Street 1, Exampletown' (no country code in the result list)."""
     return re.sub(r",\s*[A-Z]{2}$", "", address.strip())
 
 
@@ -177,7 +177,7 @@ def build_view(detail: dict[str, Any], plugs: list[str] | None = None, min_power
 
 
 def summarize(view: dict[str, Any] | None) -> str:
-    """State text of the main sensor ('2/4 available', 'Closed', 'No charge points'."""
+    """State text of the main sensor ('2/4 available', 'Closed', 'No charge points')."""
     if not view:
         return "Unknown"
     if view["open"] is False:

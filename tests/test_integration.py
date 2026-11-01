@@ -1050,9 +1050,8 @@ async def test_activity_filters_zone_and_fires_person_event(hass: HomeAssistant,
     await hass.async_block_till_done()
     assert hass.states.get(nearby).state == "None" and events == []
 
-    # driving: counts and fires the event
+    # driving: counts and fires the event, also when only the activity changes (the person does not move)
     hass.states.async_set("sensor.phone_activity", "in_vehicle")
-    hass.states.async_set("person.alice", "home", {**person, "latitude": 52.3702})
     await hass.async_block_till_done()
     assert hass.states.get(nearby).state == "Alice"
     assert len(events) == 1 and events[0].data["activity"] == "in_vehicle" and events[0].data["station_id"] == "123"
@@ -1064,3 +1063,18 @@ async def test_activity_filters_zone_and_fires_person_event(hass: HomeAssistant,
     hass.states.async_set("person.alice", "home", person)
     await hass.async_block_till_done()
     assert hass.states.get(nearby).state == "Alice" and len(events) == 2
+
+
+async def test_stale_check_runs_in_the_event_loop(hass: HomeAssistant, aioclient_mock, freezer, caplog):
+    """Regression: the 15-minute stale check wrote state from a worker thread (HA reports that as an error)."""
+    from datetime import timedelta
+
+    from pytest_homeassistant_custom_component.common import async_fire_time_changed
+
+    aioclient_mock.get(DETAIL_URL, json=DETAIL)
+    await setup(hass, entry())
+    freezer.tick(timedelta(days=2))  # the data is now stale, so the check updates the listeners
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert hass.states.get(eid(hass, "sensor", "location")).state == "Unknown"
+    assert "thread other than the event loop" not in caplog.text
