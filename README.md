@@ -2,8 +2,8 @@
 
 # EnBW Laadpalen
 
-[![Release](https://img.shields.io/github/v/release/GruttePier013/EnBW-charging-stations)](https://github.com/GruttePier013/EnBW-charging-stations/releases)
-[![License](https://img.shields.io/github/license/GruttePier013/EnBW-charging-stations)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/GruttePier013/EnBW-chargestations)](https://github.com/GruttePier013/EnBW-chargestations/releases)
+[![License](https://img.shields.io/github/license/GruttePier013/EnBW-chargestations)](LICENSE)
 [![Installs](https://img.shields.io/badge/dynamic/json?url=https://analytics.home-assistant.io/custom_integrations.json&query=$.enbw_charging_stations.total&label=Usage&suffix=%20installs&cacheSeconds=15600)](https://analytics.home-assistant.io/custom_integrations.json)
 
 Home Assistant-integratie die laat zien **welke EnBW-laadpunten nu vrij zijn**. Zoek laadpalen in een zone op de kaart, voeg ze toe als eigen apparaat en laat Home Assistant ze automatisch verversen wanneer jij in de buurt komt.

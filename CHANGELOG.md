@@ -1,16 +1,24 @@
 # Changelog
 
+## 0.7.1
+### Fixed
+- The 15-minute check for stale data wrote entity states from a worker thread, which Home Assistant logs as an error (`async_write_ha_state ... from a thread other than the event loop`, thousands of times). It now runs in the event loop.
+- Whether a refresh was automatic or manual is now fixed when it starts. Two refreshes that overlapped (for example the button during a zone refresh) could mix this up, so the event `charge_point_available` fired for an automatic refresh or was skipped for a manual one.
+- A change of the phone's *Detected activity* (for example to `in_vehicle`) now also updates the zone, so the person counts as soon as the activity changes and not only at the next GPS update.
+
 ## 0.7.0
 ### Added
 - Companion app support: when a tracked person's phone has the *Detected activity* sensor, only `in_vehicle` counts for the zone (walking, cycling, still and unknown are ignored). Without the sensor nothing changes.
-- Event `enbw_laadpalen_person_in_zone` when a person enters the zone of a station (`station_id`, `station_name`, `person`, `entity_id`, `activity`, `distance_m`).
+- Event `enbw_charging_stations_person_in_zone` when a person enters the zone of a station (`station_id`, `station_name`, `person`, `entity_id`, `activity`, `distance_m`).
 - *Open in HACS* button in the README.
 ### Changed
+- **Breaking:** the integration domain is now `enbw_charging_stations` (folder `custom_components/enbw_charging_stations`), so Home Assistant sees a new integration: remove the old *EnBW Laadpalen* entry and folder, add the integration again, and update automations that use the action `enbw_charging_stations.refresh` or the events `enbw_charging_stations_charge_point_available` and `enbw_charging_stations_person_in_zone`.
 - All remaining Dutch in the code is English: opening hours use `Mon-Fri`, default station name is `Station <id>`, device model is `EnBW charging station`. The unused compass helpers are removed.
 - **Breaking:** entities are named in English and follow the Home Assistant language (English and Dutch translations included). Entity ids now always start with `enbw_chargepoint_<station>_`, for example `sensor.enbw_chargepoint_voorbeeldlaan_14_distance`.
 - Unique ids are renamed, so existing entities keep their history: `points_available`, `availability`, `distance`, `id`, `data_timestamp`, `power_max`, `connector_types`, `points_fetched`, `person_nearby`, `person_distance`, `error_paused`, `zone_radius`, `zone_refresh`, `zone_refresh_approach`, `zone_refresh_interval`, `zone_refresh_stop` and `event`. Existing entity ids are not renamed automatically; use *Settings → Entities → Recreate entity IDs* to get the new ones, and update automations and cards.
 - State texts are English: `2/4 available`, `Closed`, `Unknown`, `None`.
-- The event `enbw_laadpalen_charge_point_available` fires only at a manual refresh (button or action) and only for charge points that changed from occupied, unknown or out of service to available. Available to available is skipped; automatic refreshes never fire it.
+- The event `enbw_charging_stations_charge_point_available` fires only at a manual refresh (button or action) and only for charge points that changed from occupied, unknown or out of service to available. Available to available is skipped; automatic refreshes never fire it.
+- License is now the Unlicense (public domain) instead of MIT. README has a disclaimer that the integration is unofficial.
 ### Removed
 - The *Open* binary sensor. `open`, `opening_hours`, `next_opening` and `next_closing` remain attributes of the map sensor; the old entity is removed automatically.
 
