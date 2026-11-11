@@ -113,7 +113,12 @@ class StationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def async_auto_refresh(self) -> None:
         """Automatic refresh (schedule, zone): honours pause, backoff and the API circuit breaker."""
         if self.paused or self.api.blocked or time.monotonic() < self._backoff_until:
-            _LOGGER.debug("Automatic refresh of %s skipped (paused or backing off)", self.key)
+            _LOGGER.debug(
+                "Automatic refresh of %s skipped (paused=%s, api blocked=%s, backoff)",
+                self.key,
+                self.paused,
+                self.api.blocked,
+            )
             return
         self._auto = True
         await self.async_refresh()
@@ -153,6 +158,18 @@ class StationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 unsub()
 
     @property
+    def visit_started(self) -> datetime | None:
+        return self._visit_start
+
+    @property
+    def window_expired(self) -> bool:
+        return self._window_expired
+
+    @property
+    def backoff_remaining(self) -> int:
+        return max(round(self._backoff_until - time.monotonic()), 0)
+
+    @property
     def approaching(self) -> bool:
         """True while a person inside the zone recently got closer to the station."""
         now = dt_util.utcnow()
@@ -187,11 +204,16 @@ class StationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_zone_tick(self, _now: datetime) -> None:
         if not (self.refresh_on_approach and self.nearby and not self._window_expired):
+            _LOGGER.debug(
+                "Zone tick %s: nothing to do (nearby=%s, expired=%s)", self.key, self.nearby, self._window_expired
+            )
             return
         if self.approach_only:
             if not self.approach_pending:
+                _LOGGER.debug("Zone tick %s: nobody got closer, no refresh", self.key)
                 return
             self.approach_pending = False
+        _LOGGER.debug("Zone tick %s: refreshing", self.key)
         await self.async_auto_refresh()
 
     @callback
@@ -201,7 +223,9 @@ class StationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return
         self._visit_start = dt_util.utcnow()
         self.approach_pending = False  # the entry refresh covers the approach so far
-        if trigger and time.monotonic() - self.last_fetch_monotonic >= MIN_APPROACH_REFRESH_GAP:
+        recent = time.monotonic() - self.last_fetch_monotonic < MIN_APPROACH_REFRESH_GAP
+        _LOGGER.debug("Visit at %s starts (nearby=%s, entry refresh=%s)", self.key, self.nearby, trigger and not recent)
+        if trigger and not recent:
             self.hass.async_create_task(self.async_auto_refresh())
         self._start_window()
         self._start_interval()

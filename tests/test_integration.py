@@ -9,7 +9,7 @@ from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.enbw_charging_stations.api import AddressNotFound
-from custom_components.enbw_charging_stations.const import API_BASE, DOMAIN, PDOK_URL
+from custom_components.enbw_charging_stations.const import API_BASE, DOMAIN, PDOK_SUGGEST_URL, PDOK_URL
 
 from .test_parser import DETAIL
 
@@ -500,6 +500,7 @@ async def test_zone_place_name_moves_pin_then_search(hass: HomeAssistant, aiocli
 
 async def test_zone_unknown_place_shows_error(hass: HomeAssistant, aioclient_mock):
     aioclient_mock.get(PDOK_URL, json={"response": {"docs": []}})
+    aioclient_mock.get(PDOK_SUGGEST_URL, json={"response": {"docs": []}, "spellcheck": {"suggestions": []}})
     aioclient_mock.get(LIST_RE, json=[])
     r = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
     r = await hass.config_entries.flow.async_configure(r["flow_id"], {"api_key": "k"})
@@ -523,6 +524,7 @@ async def test_geocode_prefers_woonplaats_for_plain_place_names(hass: HomeAssist
         }
     }
     aioclient_mock.get(PDOK_URL, json=docs)
+    aioclient_mock.get(PDOK_SUGGEST_URL, json={"response": {"docs": []}, "spellcheck": {"suggestions": []}})
     api = EnbwApi(async_get_clientsession(hass), "k")
     assert await api.async_geocode("Amersfoort") == (52.37, 4.90, "Amersfoort, Gelderland")
     assert aioclient_mock.mock_calls[0][1].query["fq"] == "type:woonplaats"
@@ -536,9 +538,11 @@ async def test_geocode_falls_back_to_any_type(hass: HomeAssistant, aioclient_moc
     from custom_components.enbw_charging_stations.api import EnbwApi
 
     aioclient_mock.get(PDOK_URL, json={"response": {"docs": []}})
+    aioclient_mock.get(PDOK_SUGGEST_URL, json={"response": {"docs": []}, "spellcheck": {"suggestions": []}})
     with pytest.raises(AddressNotFound):
         await EnbwApi(async_get_clientsession(hass), "k").async_geocode("Nergensdorp")
-    assert len(aioclient_mock.mock_calls) == 2  # first populated places, then all types
+    free_calls = [c for c in aioclient_mock.mock_calls if str(c[1]).startswith(PDOK_URL)]
+    assert len(free_calls) == 2  # first populated places, then all types
 
 
 async def test_default_device_name_has_no_postcode(hass: HomeAssistant, aioclient_mock):
@@ -1064,6 +1068,14 @@ async def test_activity_filters_zone_and_fires_person_event(hass: HomeAssistant,
     await hass.async_block_till_done()
     assert hass.states.get(nearby).state == "Alice" and len(events) == 2
 
+    # a parked car reports "still": that counts too (only walking, running and cycling are ignored)
+    hass.states.async_set("person.alice", "not_home", {**coords, "latitude": 53.0, "longitude": 6.0})
+    await hass.async_block_till_done()
+    hass.states.async_set("sensor.phone_activity", "still")
+    hass.states.async_set("person.alice", "home", person)
+    await hass.async_block_till_done()
+    assert hass.states.get(nearby).state == "Alice" and len(events) == 3 and events[2].data["activity"] == "still"
+
 
 async def test_stale_check_runs_in_the_event_loop(hass: HomeAssistant, aioclient_mock, freezer, caplog):
     """Regression: the 15-minute stale check wrote state from a worker thread (HA reports that as an error)."""
@@ -1078,3 +1090,43 @@ async def test_stale_check_runs_in_the_event_loop(hass: HomeAssistant, aioclient
     await hass.async_block_till_done()
     assert hass.states.get(eid(hass, "sensor", "location")).state == "Unknown"
     assert "thread other than the event loop" not in caplog.text
+
+
+# ---------------------------------------------------------------- typos in street names
+def _doc(name: str) -> dict:
+    return {"response": {"docs": [{"weergavenaam": name, "centroide_ll": "POINT(5.6 52.0)", "type": "weg"}]}}
+
+
+async def test_geocode_corrects_a_typo_with_the_spellchecker(hass: HomeAssistant, aioclient_mock):
+    from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+    from custom_components.enbw_charging_stations.api import EnbwApi
+
+    aioclient_mock.get(PDOK_URL, params={"q": "Lambersveen"}, json={"response": {"docs": []}})
+    aioclient_mock.get(
+        PDOK_SUGGEST_URL,
+        json={"spellcheck": {"collations": ["collation", {"collationQuery": "lambertsveen", "hits": 40}]}},
+    )
+    aioclient_mock.get(PDOK_URL, params={"q": "lambertsveen"}, json=_doc("Lambertsveen, Ede"))
+    api = EnbwApi(async_get_clientsession(hass), "k")
+    assert await api.async_geocode("Lambersveen") == (52.0, 5.6, "Lambertsveen, Ede")
+
+
+def test_spellcheck_parsing_and_plausibility():
+    from custom_components.enbw_charging_stations.api import looks_like, parse_spellcheck
+
+    sc = {
+        "suggestions": ["lambersveen", {"numFound": 2, "suggestion": ["lambertsveen", "lambersweg"]}],
+        "collations": [
+            "collation",
+            {"collationQuery": "lambersweg", "hits": 3},
+            "collation",
+            {"collationQuery": "lambertsveen", "hits": 40},
+        ],
+    }
+    assert parse_spellcheck(sc, "Lambersveen") == ["lambertsveen", "lambersweg"]
+    assert parse_spellcheck(None, "x") == [] and parse_spellcheck("junk", "x") == []
+    assert looks_like("Lambersveen", "Lambertsveen, Ede")  # one letter off
+    assert looks_like("Hout", "Houtstraat 20, Ede")  # incomplete word
+    assert not looks_like("Lambersveen", "Lambersweg, Utrecht")
+    assert looks_like("Houtstraat 20", "Houtstraat 20, Ede")

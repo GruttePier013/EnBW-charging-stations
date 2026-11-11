@@ -25,7 +25,7 @@ Handmatig: kopieer `custom_components/enbw_charging_stations` naar `config/custo
 ## Laadpalen toevoegen
 1. **API-sleutel** (eenmalig, geldt voor alle laadpalen). EnBW biedt geen publieke registratie; gebruik de sleutel die de EnBW-laadstationkaart in de browser meestuurt (header `Ocp-Apim-Subscription-Key`). Wordt de sleutel geweigerd, dan vraagt Home Assistant automatisch om opnieuw te verifiëren.
 2. **Standaardwaarden** voor nieuwe laadpalen: vernieuwingsfrequentie, zone radius, vernieuwen in zone en de bijbehorende frequentie en maximale duur. Je kunt ze later aanpassen onder *Configureren → Instellingen*.
-3. **Zoeken op de kaart:** typ een plaatsnaam of adres en druk op Enter, dan springt de pin erheen. Verplaats de pin en stel de zoekradius in (50–5000 m). Of kies *Stationsnummer invoeren*.
+3. **Zoeken op de kaart:** typ een plaatsnaam of adres en druk op Enter, dan springt de pin erheen. Kleine typefouten in een straatnaam (bijvoorbeeld *Lambersveen* in plaats van *Lambertsveen*) worden automatisch gecorrigeerd. Verplaats de pin en stel de zoekradius in (50–5000 m). Of kies *Stationsnummer invoeren*.
 4. **Resultaten:** vink de gewenste laadpalen aan. Elke laadpaal wordt een eigen apparaat. Per laadpaal zie je twee regels:
    ```
    Hoofdlaan 1, Amsterdam
@@ -71,7 +71,7 @@ Alle entiteiten krijgen een id die begint met `enbw_chargepoint_<laadpaal>_`, zo
 ## Activiteit van de Companion-app (bonus)
 Heeft de telefoon van een gevolgde persoon in de HA Companion-app de sensor *Detected activity* aan staan, dan gebruikt de integratie die automatisch:
 
-- Alleen `in_vehicle` telt mee voor de zone. Lopen, fietsen, stilstaan of een onbekende activiteit wordt genegeerd. Zonder die sensor (of als hij `unavailable` is) werkt alles zoals voorheen.
+- Lopen (`walking`), hardlopen (`running`) en fietsen (`on_bicycle`) tellen niet mee voor de zone. Alle andere activiteiten tellen wel mee, ook `still`: een net geparkeerde auto meldt vaak `still`. Zonder die sensor (of als hij `unavailable` is) werkt alles zoals voorheen.
 - Komt een persoon de zone binnen, dan wordt de gebeurtenis `enbw_charging_stations_person_in_zone` afgevuurd met `station_id`, `station_name`, `person`, `entity_id`, `activity` en `distance_m`.
 
 ## Verversen in de zone

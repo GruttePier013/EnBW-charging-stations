@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from collections.abc import Callable
+from difflib import SequenceMatcher
 from math import atan2, cos, degrees, radians, sin, sqrt
 from typing import Any
 
@@ -22,6 +24,7 @@ from .const import (
     API_BACKOFF_MAX,
     API_BASE,
     API_ORIGIN,
+    PDOK_SUGGEST_URL,
     PDOK_URL,
     RATE_LIMIT_DEFAULT_WAIT,
     REQUEST_TIMEOUT,
@@ -227,33 +230,58 @@ class EnbwApi:
         results = await asyncio.gather(*(one(i) for i in ids), return_exceptions=True)
         return dict(zip(ids, results, strict=True))
 
-    async def async_geocode(self, address: str) -> tuple[float, float, str]:
-        """Place name/address -> (lat, lon, display name).
+    async def _pdok(self, url: str, params: dict[str, Any]) -> dict[str, Any]:
+        try:
+            async with self.session.get(
+                url,
+                params=params,
+                headers={"User-Agent": USER_AGENT},
+                timeout=aiohttp.ClientTimeout(total=25),
+            ) as r:
+                r.raise_for_status()
+                data = await r.json(content_type=None)
+        except (aiohttp.ClientError, TimeoutError, ValueError) as err:
+            raise EnbwApiError(str(err)) from err
+        return data if isinstance(data, dict) else {}
+
+    async def _geocode_docs(self, address: str) -> list[dict[str, Any]]:
+        """PDOK search results for the text.
 
         A plain place name first searches populated places only; otherwise the municipality
         (with its centre in the woods) or a street elsewhere could win. With a house number or
         comma, all types are searched.
         """
         specific = any(ch.isdigit() for ch in address) or "," in address
-        docs: list[dict[str, Any]] = []
         for fq in [None] if specific else ["type:woonplaats", None]:
             params: dict[str, Any] = {"q": address, "rows": 5, "fl": "weergavenaam,centroide_ll,type"}
             if fq:
                 params["fq"] = fq
-            try:
-                async with self.session.get(
-                    PDOK_URL,
-                    params=params,
-                    headers={"User-Agent": USER_AGENT},
-                    timeout=aiohttp.ClientTimeout(total=25),
-                ) as r:
-                    r.raise_for_status()
-                    data = await r.json(content_type=None)
-            except (aiohttp.ClientError, TimeoutError) as err:
-                raise EnbwApiError(str(err)) from err
-            docs = data.get("response", {}).get("docs", [])
+            docs = (await self._pdok(PDOK_URL, params)).get("response", {}).get("docs", [])
             if docs:
-                break
+                return docs
+        return []
+
+    async def _spellcheck(self, address: str) -> list[str]:
+        """Corrected versions of the text from the PDOK spellchecker (only answers when nothing matches)."""
+        try:
+            data = await self._pdok(PDOK_SUGGEST_URL, {"q": address, "rows": 1})
+        except EnbwApiError:  # a correction is a bonus: never fail the search because of it
+            return []
+        return parse_spellcheck(data.get("spellcheck"), address)
+
+    async def async_geocode(self, address: str) -> tuple[float, float, str]:
+        """Place name/address -> (lat, lon, display name).
+
+        Small typos in a street name are corrected: when nothing is found, or the best result does
+        not look like what was typed, the PDOK spellchecker proposes corrections that are tried next.
+        """
+        docs = await self._geocode_docs(address)
+        if not docs or not looks_like(address, docs[0].get("weergavenaam", "")):
+            for corrected in (await self._spellcheck(address))[:3]:
+                better = await self._geocode_docs(corrected)
+                if better and looks_like(corrected, better[0].get("weergavenaam", "")):
+                    docs = better
+                    break
         if not docs:
             raise AddressNotFound(address)
         doc = docs[0]  # PDOK sorts by relevance
@@ -262,3 +290,31 @@ class EnbwApi:
             raise AddressNotFound(address)
         lon, lat = map(float, point[6:-1].split())
         return lat, lon, doc.get("weergavenaam", address)
+
+
+def looks_like(query: str, name: str) -> bool:
+    """True when every longer word of the query occurs (nearly) in the result name: typo tolerance of 15 %."""
+    words = re.findall(r"[^\W\d_]{4,}", query.lower())
+    found = re.findall(r"[^\W\d_]+", name.lower())
+    return all(any(f.startswith(w) or SequenceMatcher(None, w, f).ratio() >= 0.85 for f in found) for w in words)
+
+
+def parse_spellcheck(spellcheck: Any, query: str) -> list[str]:
+    """Corrections from a PDOK ``spellcheck`` block, best first (most hits).
+
+    Format: ``collations`` is ``["collation", {"collationQuery": ..., "hits": ...}, ...]`` and
+    ``suggestions`` is ``[term, {"suggestion": [...]}, ...]``. Anything unexpected gives an empty list.
+    """
+    if not isinstance(spellcheck, dict):
+        return []
+    collations = [c for c in spellcheck.get("collations") or [] if isinstance(c, dict) and c.get("collationQuery")]
+    collations.sort(key=lambda c: -(c.get("hits") or 0))
+    out = [str(c["collationQuery"]) for c in collations]
+    suggestions = spellcheck.get("suggestions") or []
+    for term, info in zip(suggestions[0::2], suggestions[1::2], strict=False):
+        if isinstance(term, str) and isinstance(info, dict):
+            for word in info.get("suggestion") or []:
+                word = word.get("word") if isinstance(word, dict) else word
+                if isinstance(word, str) and re.search(re.escape(term), query, re.IGNORECASE):
+                    out.append(re.sub(re.escape(term), word, query, flags=re.IGNORECASE))
+    return list(dict.fromkeys(q for q in out if q.strip().lower() != query.strip().lower()))

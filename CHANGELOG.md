@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.2
+### Changed
+- Zone: only walking, running and cycling (`detected_activity` `walking`, `running`, `on_bicycle`) are ignored now, everything else counts (`in_vehicle`, `still`, `unknown`). Before, only `in_vehicle` counted, so a parked car that reports `still` dropped out of the zone, which ended the visit and the refreshes while still on site.
+- Address search: small typos in a street or place name are corrected with the PDOK spellchecker (`Lambersveen` finds `Lambertsveen`). It is used when nothing is found or the best result does not look like what was typed.
+- Brand images: the plain car-and-charger picture is the integration icon (`brand/icon.png`) and the picture with the *EnBW* text is the logo (`brand/logo.png`), as shown when you open the integration in Home Assistant.
+- Debug logging of the zone logic (visit start, why a refresh was skipped) and the visit state in the diagnostics download.
+
 ## 0.7.1
 ### Fixed
 - The 15-minute check for stale data wrote entity states from a worker thread, which Home Assistant logs as an error (`async_write_ha_state ... from a thread other than the event loop`, thousands of times). It now runs in the event loop.

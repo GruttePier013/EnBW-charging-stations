@@ -16,7 +16,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 
 from .api import distance_m
-from .const import ACTIVITY_DRIVING, APPROACH_HOLD_MIN, APPROACH_MIN_DELTA_M
+from .const import ACTIVITIES_IGNORED, APPROACH_HOLD_MIN, APPROACH_MIN_DELTA_M
 from .coordinator import StationCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -99,9 +99,8 @@ class ProximityTracker:
         return None
 
     def _counts(self, person: str) -> bool:
-        """A person counts for the zone unless the phone reports an activity other than driving."""
-        activity = self.activity(person)
-        return activity is None or activity == ACTIVITY_DRIVING
+        """A person counts for the zone unless the phone reports walking, running or cycling."""
+        return self.activity(person) not in ACTIVITIES_IGNORED
 
     def _positions(self) -> dict[str, tuple[float, float]]:
         out: dict[str, tuple[float, float]] = {}

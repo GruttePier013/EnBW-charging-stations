@@ -59,6 +59,7 @@ PICTURE_UNAVAILABLE = f"{STATIC_URL}/station_unavailable.png"
 PICTURE_UNKNOWN = f"{STATIC_URL}/station_unknown.png"  # no or outdated data
 SERVICE_REFRESH = "refresh"
 PDOK_URL = "https://api.pdok.nl/bzk/locatieserver/search/v3_1/free"
+PDOK_SUGGEST_URL = "https://api.pdok.nl/bzk/locatieserver/search/v3_1/suggest"
 USER_AGENT = "HomeAssistant-enbw_charging_stations/0.1.0 (custom integration)"
 
 DEFAULT_PROXIMITY_RADIUS = 1000  # meters
@@ -81,8 +82,9 @@ APPROACH_HOLD_MIN = 5  # minutes a person keeps counting as approaching after th
 
 EVENT_CHARGE_POINT_AVAILABLE = f"{DOMAIN}_charge_point_available"
 EVENT_PERSON_IN_ZONE = f"{DOMAIN}_person_in_zone"
-# Companion app activity ("detected_activity") that counts as driving; other activities are ignored
-ACTIVITY_DRIVING = "in_vehicle"
+# Companion app activities ("detected_activity") of someone on foot or by bike: they do not count for the zone.
+# Everything else (in_vehicle, still, unknown) counts: a parked car often reports "still" on arrival.
+ACTIVITIES_IGNORED = frozenset({"walking", "running", "on_bicycle"})
 
 # Entity ids start with this prefix: <domain>.enbw_chargepoint_<station>_<key>
 ENTITY_PREFIX = "enbw_chargepoint"
