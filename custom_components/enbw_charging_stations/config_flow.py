@@ -329,7 +329,7 @@ class StationFlowMixin:
                 return await self.async_step_station_details()
         # One field per station: checkbox + address (row 1) with status and details as helper text (row 2):
         #   ☐ Main Street 1, Exampletown
-        #     2/10 available, ⚡17kW power, 📍2925161, 140m from home
+        #     2/10 available, ⚡17kW power, 📍1234567, 140m from home
         fields: dict[Any, Any] = {}
         placeholders: dict[str, str] = {}
         total_kw = 0.0

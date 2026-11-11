@@ -25,11 +25,11 @@ Handmatig: kopieer `custom_components/enbw_charging_stations` naar `config/custo
 ## Laadpalen toevoegen
 1. **API-sleutel** (eenmalig, geldt voor alle laadpalen). EnBW biedt geen publieke registratie; gebruik de sleutel die de EnBW-laadstationkaart in de browser meestuurt (header `Ocp-Apim-Subscription-Key`). Wordt de sleutel geweigerd, dan vraagt Home Assistant automatisch om opnieuw te verifiëren.
 2. **Standaardwaarden** voor nieuwe laadpalen: vernieuwingsfrequentie, zone radius, vernieuwen in zone en de bijbehorende frequentie en maximale duur. Je kunt ze later aanpassen onder *Configureren → Instellingen*.
-3. **Zoeken op de kaart:** typ een plaatsnaam of adres en druk op Enter, dan springt de pin erheen. Kleine typefouten in een straatnaam (bijvoorbeeld *Lambersveen* in plaats van *Lambertsveen*) worden automatisch gecorrigeerd. Verplaats de pin en stel de zoekradius in (50–5000 m). Of kies *Stationsnummer invoeren*.
+3. **Zoeken op de kaart:** typ een plaatsnaam of adres en druk op Enter, dan springt de pin erheen. Kleine typefouten in een straatnaam (bijvoorbeeld *Voorbeeldlan* in plaats van *Voorbeeldlaan*) worden automatisch gecorrigeerd. Verplaats de pin en stel de zoekradius in (50–5000 m). Of kies *Stationsnummer invoeren*.
 4. **Resultaten:** vink de gewenste laadpalen aan. Elke laadpaal wordt een eigen apparaat. Per laadpaal zie je twee regels:
    ```
    Hoofdlaan 1, Amsterdam
-   2/10 beschikbaar, ⚡17kW vermogen, 📍2925161, 140m van huis
+   2/10 beschikbaar, ⚡17kW vermogen, 📍1234567, 140m van huis
    ```
    (vrije/totaal laadpunten, hoogste vermogen, locatiecode en afstand vanaf je thuislocatie)
 5. **Per laadpaal:** naam, optioneel de **connectortypen** en het **minimale vermogen** dat meetelt.

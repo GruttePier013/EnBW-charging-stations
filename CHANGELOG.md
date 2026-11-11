@@ -3,7 +3,7 @@
 ## 0.7.2
 ### Changed
 - Zone: only walking, running and cycling (`detected_activity` `walking`, `running`, `on_bicycle`) are ignored now, everything else counts (`in_vehicle`, `still`, `unknown`). Before, only `in_vehicle` counted, so a parked car that reports `still` dropped out of the zone, which ended the visit and the refreshes while still on site.
-- Address search: small typos in a street or place name are corrected with the PDOK spellchecker (`Lambersveen` finds `Lambertsveen`). It is used when nothing is found or the best result does not look like what was typed.
+- Address search: small typos in a street or place name are corrected with the PDOK spellchecker (`Voorbeeldlan` finds `Voorbeeldlaan`). It is used when nothing is found or the best result does not look like what was typed.
 - Brand images: the plain car-and-charger picture is the integration icon (`brand/icon.png`) and the picture with the *EnBW* text is the logo (`brand/logo.png`), as shown when you open the integration in Home Assistant.
 - Debug logging of the zone logic (visit start, why a refresh was skipped) and the visit state in the diagnostics download.
 
@@ -40,7 +40,7 @@
 
 ## 0.6.2
 ### Changed
-- Search result list in the config flow: row 1 is the address without country code (`Hoofdlaan 1, Amsterdam`), row 2 is `2/10 beschikbaar, ⚡17kW vermogen, 📍2925161, 140m van huis`. The distance is now measured from your Home Assistant home location; the compass direction is gone.
+- Search result list in the config flow: row 1 is the address without country code (`Hoofdlaan 1, Amsterdam`), row 2 is `2/10 beschikbaar, ⚡17kW vermogen, 📍1234567, 140m van huis`. The distance is now measured from your Home Assistant home location; the compass direction is gone.
 - README rewritten: shorter intro, clearer setup steps, grouped entity tables and a section showing the four map markers.
 
 ## 0.6.1

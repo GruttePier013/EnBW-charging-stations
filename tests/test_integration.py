@@ -468,7 +468,7 @@ async def test_zone_place_name_moves_pin_then_search(hass: HomeAssistant, aiocli
             "response": {
                 "docs": [
                     {
-                        "weergavenaam": "Utrecht, Gelderland",
+                        "weergavenaam": "Voorbeeldstad, Voorbeeldprovincie",
                         "centroide_ll": "POINT(4.9000 52.3233)",
                         "type": "woonplaats",
                     }
@@ -485,15 +485,15 @@ async def test_zone_place_name_moves_pin_then_search(hass: HomeAssistant, aiocli
     assert list(r["data_schema"].schema)[0] == "address"  # the place name field is above the map
     home = {"latitude": hass.config.latitude, "longitude": hass.config.longitude, "radius": 250}
     # new place name -> the form reopens with pin, fields and place name at that place
-    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"address": "Utrecht", "location": home})
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"address": "Voorbeeldstad", "location": home})
     assert r["type"] is FlowResultType.FORM and r["step_id"] == "search"
     sug = {str(k): k.description["suggested_value"] for k in r["data_schema"].schema if k.description}
-    assert sug["location"]["latitude"] == 52.3233 and sug["address"] == "Utrecht, Gelderland"
+    assert sug["location"]["latitude"] == 52.3233 and sug["address"] == "Voorbeeldstad, Voorbeeldprovincie"
     assert set(r["data_schema"].schema) == {"address", "location"}  # one pair of GPS fields: the map selector's own
     # pin verfijnd/bevestigd, plaatsnaam ongewijzigd -> nu pas zoeken
     r = await hass.config_entries.flow.async_configure(
         r["flow_id"],
-        {"address": "Utrecht, Gelderland", "location": {"latitude": 52.3233, "longitude": 4.9000, "radius": 250}},
+        {"address": "Voorbeeldstad, Voorbeeldprovincie", "location": {"latitude": 52.3233, "longitude": 4.9000, "radius": 250}},
     )
     assert r["step_id"] == "select_station_single"
 
@@ -519,14 +519,14 @@ async def test_geocode_prefers_woonplaats_for_plain_place_names(hass: HomeAssist
     docs = {
         "response": {
             "docs": [
-                {"weergavenaam": "Amersfoort, Gelderland", "centroide_ll": "POINT(4.90 52.37)", "type": "woonplaats"}
+                {"weergavenaam": "Proefdorp, Voorbeeldprovincie", "centroide_ll": "POINT(4.90 52.37)", "type": "woonplaats"}
             ]
         }
     }
     aioclient_mock.get(PDOK_URL, json=docs)
     aioclient_mock.get(PDOK_SUGGEST_URL, json={"response": {"docs": []}, "spellcheck": {"suggestions": []}})
     api = EnbwApi(async_get_clientsession(hass), "k")
-    assert await api.async_geocode("Amersfoort") == (52.37, 4.90, "Amersfoort, Gelderland")
+    assert await api.async_geocode("Proefdorp") == (52.37, 4.90, "Proefdorp, Voorbeeldprovincie")
     assert aioclient_mock.mock_calls[0][1].query["fq"] == "type:woonplaats"
     await api.async_geocode("Voorbeeldlaan 1, Voorbeeldstad")  # with house number/comma: all types
     assert "fq" not in aioclient_mock.mock_calls[1][1].query
@@ -1094,7 +1094,7 @@ async def test_stale_check_runs_in_the_event_loop(hass: HomeAssistant, aioclient
 
 # ---------------------------------------------------------------- typos in street names
 def _doc(name: str) -> dict:
-    return {"response": {"docs": [{"weergavenaam": name, "centroide_ll": "POINT(5.6 52.0)", "type": "weg"}]}}
+    return {"response": {"docs": [{"weergavenaam": name, "centroide_ll": "POINT(4.90 52.37)", "type": "weg"}]}}
 
 
 async def test_geocode_corrects_a_typo_with_the_spellchecker(hass: HomeAssistant, aioclient_mock):
@@ -1102,31 +1102,31 @@ async def test_geocode_corrects_a_typo_with_the_spellchecker(hass: HomeAssistant
 
     from custom_components.enbw_charging_stations.api import EnbwApi
 
-    aioclient_mock.get(PDOK_URL, params={"q": "Lambersveen"}, json={"response": {"docs": []}})
+    aioclient_mock.get(PDOK_URL, params={"q": "Voorbeeldlan"}, json={"response": {"docs": []}})
     aioclient_mock.get(
         PDOK_SUGGEST_URL,
-        json={"spellcheck": {"collations": ["collation", {"collationQuery": "lambertsveen", "hits": 40}]}},
+        json={"spellcheck": {"collations": ["collation", {"collationQuery": "voorbeeldlaan", "hits": 40}]}},
     )
-    aioclient_mock.get(PDOK_URL, params={"q": "lambertsveen"}, json=_doc("Lambertsveen, Ede"))
+    aioclient_mock.get(PDOK_URL, params={"q": "voorbeeldlaan"}, json=_doc("Voorbeeldlaan, Voorbeeldstad"))
     api = EnbwApi(async_get_clientsession(hass), "k")
-    assert await api.async_geocode("Lambersveen") == (52.0, 5.6, "Lambertsveen, Ede")
+    assert await api.async_geocode("Voorbeeldlan") == (52.37, 4.90, "Voorbeeldlaan, Voorbeeldstad")
 
 
 def test_spellcheck_parsing_and_plausibility():
     from custom_components.enbw_charging_stations.api import looks_like, parse_spellcheck
 
     sc = {
-        "suggestions": ["lambersveen", {"numFound": 2, "suggestion": ["lambertsveen", "lambersweg"]}],
+        "suggestions": ["voorbeeldlan", {"numFound": 2, "suggestion": ["voorbeeldlaan", "voorbeeldweg"]}],
         "collations": [
             "collation",
-            {"collationQuery": "lambersweg", "hits": 3},
+            {"collationQuery": "voorbeeldweg", "hits": 3},
             "collation",
-            {"collationQuery": "lambertsveen", "hits": 40},
+            {"collationQuery": "voorbeeldlaan", "hits": 40},
         ],
     }
-    assert parse_spellcheck(sc, "Lambersveen") == ["lambertsveen", "lambersweg"]
+    assert parse_spellcheck(sc, "Voorbeeldlan") == ["voorbeeldlaan", "voorbeeldweg"]
     assert parse_spellcheck(None, "x") == [] and parse_spellcheck("junk", "x") == []
-    assert looks_like("Lambersveen", "Lambertsveen, Ede")  # one letter off
-    assert looks_like("Hout", "Houtstraat 20, Ede")  # incomplete word
-    assert not looks_like("Lambersveen", "Lambersweg, Utrecht")
-    assert looks_like("Houtstraat 20", "Houtstraat 20, Ede")
+    assert looks_like("Voorbeeldlan", "Voorbeeldlaan, Voorbeeldstad")  # one letter off
+    assert looks_like("Proef", "Proefstraat 20, Voorbeeldstad")  # incomplete word
+    assert not looks_like("Voorbeeldlan", "Voorbeeldweg, Voorbeeldstad")
+    assert looks_like("Proefstraat 20", "Proefstraat 20, Voorbeeldstad")
